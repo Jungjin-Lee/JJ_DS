@@ -1,4 +1,5 @@
 
+var Logging = true;
 var Connected = 2;
 var Connected_Send = '{"type":2}';
 
@@ -14,17 +15,21 @@ var ReceivedChat = 11;
 
 var RoomJoin = 20;
 var RoomJoinSuccess = 21;
-var RoomJoinSuccess_Send = '{"type":21, "room":0}';
+var RoomJoinSuccess_Send = '{"type":21, "room":-1}';
 var RoomJoinSuccess_Obj = JSON.parse(RoomJoinSuccess_Send);
 var RoomJoinFailed = 22;
 
 var RoomConnect = 30;
 var RoomConnectSuccess = 31;
-var RoomConnectSuccess_Send = '{"type":31, "room":0, "player1":""}';
+var RoomConnectSuccess_Send = '{"type":31, "room":-1, "slot":-1}';
 var RoomConnectSuccess_Obj = JSON.parse(RoomConnectSuccess_Send);
 var RoomConnectFailed = 32;
 var RoomConnectFailed_Send = '{"type":32}';
 var RoomConnectFailed_Obj = JSON.parse(RoomConnectFailed_Send);
+
+var RoomInfo = 40;
+var RoomInfo_Send = '{"type":40, "room":-1, "player1":"", "player2":""}';
+var RoomInfo_Obj = JSON.parse(RoomInfo_Send);
 
 //tcp서버를 요청할 함수
 var tcp = require("net");
@@ -37,6 +42,8 @@ var rooms = new Array();
 //서버 생성
 var server = tcp.createServer( function(socket)
 {
+        // nagle off
+        socket.setNoDelay(true);
         //입장한 사람의 아이피와 포트를 기록한다.
         console.log("connect : " + socket.remoteAddress + ":" + socket.remotePort + " 입장");
         // 성공적으로 연결 됐다고 알려준다.
@@ -48,15 +55,31 @@ var server = tcp.createServer( function(socket)
         // 퇴장할경우
         socket.on("close",function()
         {
-                //소켓들을 검색 퇴장한 소켓을 찾는다.
+                //플레이어들을 검색 퇴장한 플레이어를 찾는다.
                 var len = players.length;
                 for(var i = 0; i < len; i++)
                 {
                         var player = players[i];
-                        if(player.remoteAddress == socket.remoteAddress && player.remotePort == player.remotePort)
+                        if(player.remoteAddress == socket.remoteAddress && player.remotePort == socket.remotePort)
                         {
-                                //이미 퇴장한 사람이라 아이피를 찾아오지 못한다.
-                                console.log(player.id + ":" + player.id + " 유저 퇴장");
+                                console.log(player.id + ":" + player.name + ":" + player.remoteAddress + ":" + player.remotePort + ":" + player.roomNumber + ":" + player.isRoom + ":" + player.slot);
+                                // console.log(player);
+                                if(player.isRoom) {
+                                    if(player.slot == 1) {
+                                        player.room.player1 = null;
+                                    } else {
+                                        player.room.player2 = null;
+                                    }
+
+                                    if(player.room.playerCnt == 1) {
+                                        player.room.isEmpty = true;
+                                    } else {
+
+                                    }
+
+                                    player.slot = 0;
+                                    player.isRoom = false;
+                                }
                                 //퇴장한 사람의 소켓을 소켓 배열에서 삭제한다.
                                 players.splice(i,1);
                                 break;
@@ -88,6 +111,7 @@ var server = tcp.createServer( function(socket)
                 var jsonString = "";
                 if(jsonObj.type == Login) {
                         var player = {};
+                        player.socket = socket;
                         player.remoteAddress = socket.remoteAddress;
                         player.remotePort = socket.remotePort;
                         player.id = jsonObj.id;
@@ -103,26 +127,41 @@ var server = tcp.createServer( function(socket)
                     jsonString = JSON.stringify(jsonObj);
                     AllSendData(jsonString);
                 } else if(jsonObj.type == RoomJoin) {
-                    var player = GetPlayerAtSock(sock);
-                    var room = RoomJoin(player);
+                    var player = GetPlayerAtSock(socket);
+                    var room = PlayerRoomJoin(player);
 
                     RoomJoinSuccess_Obj.room = room.roomNumber;
                     jsonString = JSON.stringify(RoomJoinSuccess_Obj);
                     console.log("room join success : " + jsonString);
                     socket.write(jsonString);
                 } else if(jsonObj.type == RoomConnect) {
-                    var player = GetPlayerAtSock(sock);
-                    var room = RoomConnect(player);
+                    var player = GetPlayerAtSock(socket);
+                    var room = PlayerRoomConnect(player);
 
                     if(room == null) {
-                        console.log("room connect failed : ");
-                        socket.write(RoomConnectFailed_Send);
+                        room = PlayerRoomJoin(player);
+
+                        RoomJoinSuccess_Obj.room = room.roomNumber;
+                        jsonString = JSON.stringify(RoomJoinSuccess_Obj);
+                        console.log("room join success : " + jsonString);
+                        socket.write(jsonString);
+
+                        // console.log("room connect failed : ");
+                        // socket.write(RoomConnectFailed_Send);
                     } else {
                         RoomConnectSuccess_Obj.room = room.roomNumber;
-                        RoomConnectSuccess_Obj.player1 = room.player1.name;
+                        RoomConnectSuccess_Obj.slot = GetMySlotAtRoom(room, player);
                         jsonString = JSON.stringify(RoomConnectSuccess_Obj);
                         console.log("room connect success : " + jsonString);
                         socket.write(jsonString);
+
+                        var RoomInfo_Send = '{"type":40, "room":-1, "player1":"", "player2":""}';
+                        RoomInfo_Obj.room = room.roomNumber;
+                        RoomInfo_Obj.player1 = room.player1.name;
+                        RoomInfo_Obj.player2 = room.player2.name;
+                        jsonString = JSON.stringify(RoomInfo_Obj);
+                        console.log("room info send : " + jsonString);
+                        AllSendDataInRoom(room, jsonString);
                     }
                 }
                 /*
@@ -150,33 +189,46 @@ function AllSendData(data) {
     }
 }
 
+function AllSendDataInRoom(room, data) {
+    for(var i = 1; i <= 2; i++) {
+        if(room['player' + i]) {
+            room['player' + i].socket.write(data);
+        }
+    }
+}
+
 function GetPlayerAtSock(sock) {
     var len = players.length;
     for(var i = 0; i < len; i++)
     {
             var player = players[i];
-            if(player.remoteAddress == socket.remoteAddress && player.remotePort == player.remotePort)
+            if(player.remoteAddress == sock.remoteAddress && player.remotePort == sock.remotePort)
             {
                     return player;
             }
     }
 }
 
-function RoomConnect(player) {
+function PlayerRoomConnect(player) {
     var len = rooms.length;
     for(var i = 0; i < len; i++) {
         var room = rooms[i];
         if(!room.isEmpty && room.player2 == null) {
             room.player2 = player;
+            room.playerCnt = 2;
+            player.room = room;
             player.roomNumber = i;
-            player.roomIndex = 1;
+            player.isRoom = true;
+            player.slot = 2;
+            if(Logging) console.log("roomconnect success : ");
             return room;
         }
     }
+    if(Logging) console.log("roomconnect not empty : ");
     return null;
 }
 
-function RoomJoin(player) {
+function PlayerRoomJoin(player) {
     var exist = false;
     var len = rooms.length;
     for(var i = 0; i < len; i++) {
@@ -186,8 +238,11 @@ function RoomJoin(player) {
             room.isEmpty = false;
             room.player1 = player;
             room.player2 = null;
+            room.playerCnt = 1;
             player.roomNumber = i;
-            player.roomIndex = 0;
+            player.isRoom = true;
+            player.slot = 1;
+            if(Logging) console.log("roomjoin recycle : " + room.roomNumber);
             return room;
         }
     }
@@ -195,12 +250,24 @@ function RoomJoin(player) {
     newRoom.isEmpty = false;
     newRoom.player1 = player;
     newRoom.player2 = null;
+    newRoom.playerCnt = 1;
 
     rooms.push(newRoom);
-    newRoom.roomNumber = room.length - 1;
-    player.roomNumber = room.length - 1;
-    player.roomIndex = 0;
-    return room;
+    newRoom.roomNumber = rooms.length - 1;
+    player.room = newRoom;
+    player.roomNumber = rooms.length - 1;
+    player.isRoom = true;
+    player.slot = 1;
+    if(Logging) console.log("roomjoin make : ");
+    return newRoom;
+}
+
+function GetMySlotAtRoom(room, player) {
+    if(room.player1 && room.player1 == player) {
+        return 1;
+    } else if(room.player2 && room.player2 == player) {
+        return 2;
+    }
 }
 
 //tcp서버가 listening을 시작함을 알림
