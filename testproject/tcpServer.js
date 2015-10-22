@@ -239,6 +239,8 @@ function PlayerRoomJoin(player) {
             room.player1 = player;
             room.player2 = null;
             room.playerCnt = 1;
+
+            player.room = room;
             player.roomNumber = i;
             player.isRoom = true;
             player.slot = 1;
