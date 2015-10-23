@@ -60,12 +60,12 @@ var server = tcp.createServer( function(socket)
                         // var player = {};
                         var player = PlayerManager.make();
                         console.log(player);
-                        player.socket = socket;
                         player.remoteAddress = socket.remoteAddress;
                         player.remotePort = socket.remotePort;
                         player.id = jsonObj.id;
                         player.name = jsonObj.id;
                         console.log(player);
+                        player.socket = socket;
 
                         ProtocolManager.LoginSuccess_Obj.name = jsonObj.id;
                         jsonString = JSON.stringify(ProtocolManager.LoginSuccess_Obj);
@@ -100,7 +100,7 @@ var server = tcp.createServer( function(socket)
                         // socket.write(RoomConnectFailed_Send);
                     } else {
                         ProtocolManager.RoomConnectSuccess_Obj.room = room.roomNumber;
-                        ProtocolManager.RoomConnectSuccess_Obj.slot = GetMySlotAtRoom(room, player);
+                        ProtocolManager.RoomConnectSuccess_Obj.slot = RoomManager.getMySlotAtRoom(room, player);
                         jsonString = JSON.stringify(ProtocolManager.RoomConnectSuccess_Obj);
                         console.log("room connect success : " + jsonString);
                         socket.write(jsonString);
@@ -111,7 +111,33 @@ var server = tcp.createServer( function(socket)
                         jsonString = JSON.stringify(ProtocolManager.RoomInfo_Obj);
                         console.log("room info send : " + jsonString);
                         RoomManager.allSend(room, jsonString);
+                        RoomManager.allSend(room, ProtocolManager.RoomPlay_Send);
+
+                        ProtocolManager.RoomPlayDice_Obj.t = 1;
+                        jsonString = JSON.stringify(ProtocolManager.RoomPlayDice_Obj);
+                        RoomManager.allSend(room, jsonString);
                     }
+                } else if(jsonObj.type == ProtocolManager.RoomThrowDice) {
+                    var player = PlayerManager.getPlayerAtSock(socket);
+                    var room = player.room;
+
+                    ProtocolManager.RoomThrowDice_Obj.t = room.turn;
+                    ProtocolManager.RoomThrowDice_Obj.d1 = Math.floor(Math.random() * 5) + 1;
+                    ProtocolManager.RoomThrowDice_Obj.d2 = Math.floor(Math.random() * 5) + 1;
+                    jsonString = JSON.stringify(ProtocolManager.RoomThrowDice_Obj);
+                    RoomManager.allSend(room, jsonString);
+                } else if(jsonObj.type == ProtocolManager.RoomPlayNext) {
+                    var player = PlayerManager.getPlayerAtSock(socket);
+                    var room = player.room;
+
+                    room.turn++;
+                    if(room.turn > room.playerCnt) {
+                        room.turn = 1;
+                    }
+
+                    ProtocolManager.RoomPlayDice_Obj.t = room.turn;
+                    jsonString = JSON.stringify(ProtocolManager.RoomPlayDice_Obj);
+                    RoomManager.allSend(room, jsonString);
                 }
                 /*
                 //소켓들을 검색 데이터를 보낸 소켓을 찾는다.
