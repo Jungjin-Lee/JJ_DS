@@ -126,44 +126,18 @@ var server = tcp.createServer( function(socket)
                 } else if(jsonObj.type == ProtocolManager.RoomPlay) {
                     var player = PlayerManager.getPlayerAtSock(socket);
                     var room = player.room;
+                    RoomManager.start(room);
                     RoomManager.giveCard(room, ProtocolManager, 0);
                 } else if(jsonObj.type == ProtocolManager.RoomRaceCall) {
                     var player = PlayerManager.getPlayerAtSock(socket);
                     var room = player.room;
-                    RoomManager.raceNext(room, player, ProtocolManager);
-                } else if(jsonObj.type == ProtocolManager.RoomThrowDice) {
+                    RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceCall);
+                } else if(jsonObj.type == ProtocolManager.RoomRaceHalf) {
                     var player = PlayerManager.getPlayerAtSock(socket);
                     var room = player.room;
-
-                    ProtocolManager.RoomThrowDice_Obj.t = room.turn;
-                    ProtocolManager.RoomThrowDice_Obj.d1 = Math.floor(Math.random() * 5) + 1;
-                    ProtocolManager.RoomThrowDice_Obj.d2 = Math.floor(Math.random() * 5) + 1;
-                    jsonString = JSON.stringify(ProtocolManager.RoomThrowDice_Obj);
-                    RoomManager.allSend(room, jsonString);
-                } else if(jsonObj.type == ProtocolManager.RoomPlayNext) {
-                    var player = PlayerManager.getPlayerAtSock(socket);
-                    var room = player.room;
-
-                    room.turn++;
-                    if(room.turn > room.playerCnt) {
-                        room.turn = 1;
-                    }
-
-                    ProtocolManager.RoomPlayDice_Obj.t = room.turn;
-                    jsonString = JSON.stringify(ProtocolManager.RoomPlayDice_Obj);
-                    RoomManager.allSend(room, jsonString);
+                    RoomManager.race(room, player);
+                    RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceHalf);
                 }
-                /*
-                //소켓들을 검색 데이터를 보낸 소켓을 찾는다.
-                var len = sockets.length;
-                for(var i = 0; i < len; i++)
-                {
-                        //들어온 데이터를 모든 소켓들에게 보네줌
-                        sockets[i].write(data);
-
-                }
-                //데이터를 스트링으로 변환해서 출력
-                console.log("send : " + data.toString());*/
         });
 });
 
