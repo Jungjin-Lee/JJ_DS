@@ -1,0 +1,2 @@
+C:\Users\Administrator\Documents\works\Node.js\JJ_DS\sutda\obj\Debug\sutda.njsprojResolveAssemblyReference.cache
+C:\Users\Administrator\Documents\works\Node.js\JJ_DS\sutda\bin\Microsoft.NodejsTools.WebRole.dll
