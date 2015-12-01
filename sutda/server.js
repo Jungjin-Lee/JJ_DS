@@ -131,12 +131,24 @@ var server = tcp.createServer( function(socket)
                 } else if(jsonObj.type == ProtocolManager.RoomRaceCall) {
                     var player = PlayerManager.getPlayerAtSock(socket);
                     var room = player.room;
+                    RoomManager.raceCall(room, player);
                     RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceCall);
                 } else if(jsonObj.type == ProtocolManager.RoomRaceHalf) {
                     var player = PlayerManager.getPlayerAtSock(socket);
                     var room = player.room;
-                    RoomManager.race(room, player);
+                    RoomManager.raceHalf(room, player);
                     RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceHalf);
+                } else if(jsonObj.type == ProtocolManager.RoomRaceBbing) {
+                  var player = PlayerManager.getPlayerAtSock(socket);
+                  var room = player.room;
+                  var money = RoomManager.raceBbing(room, player);
+                  RoomManager.raceBbing(room, player);
+                  RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceBbing);
+                } else if(jsonObj.type == ProtocolManager.RoomRaceCheck) {
+                    var player = PlayerManager.getPlayerAtSock(socket);
+                    var room = player.room;
+                    RoomManager.raceCheck(room, player);
+                    RoomManager.raceNext(room, player, ProtocolManager, ProtocolManager.RoomRaceCheck);
                 }
         });
 });
